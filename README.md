@@ -1,4 +1,3 @@
-# finance-management-app
 # 📊 Finance Management App (Smart Personal Finance Assistant)
 
 A mobile-first **personal finance management app** that helps users analyze and manage their UPI/SMS transactions with AI-powered features.
