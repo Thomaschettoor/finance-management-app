@@ -1,7 +1,7 @@
 # finance-management-app
 # 📊 Finance Management App (Smart Personal Finance Assistant)
 
-A mobile-first **personal finance management app** (inspired by Axio app) that helps users analyze and manage their UPI/SMS transactions with AI-powered features.
+A mobile-first **personal finance management app** that helps users analyze and manage their UPI/SMS transactions with AI-powered features.
 
 ---
 
@@ -38,3 +38,39 @@ A mobile-first **personal finance management app** (inspired by Axio app) that h
 ---
 
 ## 📂 Project Structure
+finance-management-app/
+│── mobile_app/ # React Native app (Expo)
+│── backend_ai/ # AI models + FastAPI
+│── backend_supabase/ # Supabase schema + migrations
+│── docs/ # PPT, reports, design docs
+│── README.md # Project info
+
+
+---
+
+## 👥 Team Roles
+
+- **Mobile Team** → UI/UX, React Native development  
+- **Backend Team** → Supabase setup, API integration  
+- **AI/ML Team** → Training models, AI APIs, chatbot  
+
+---
+
+## 🚀 Roadmap
+
+1. **Setup GitHub repo & base structure** ✅  
+2. **Design UI in Figma** 🎨  
+3. **Setup Supabase schema (users, transactions, categories)** 🗄️  
+4. **Implement AI categorization & fraud detection API** 🤖  
+5. **Build React Native app (dashboard, transaction list, chatbot)** 📱  
+6. **Integrate Supabase & AI backend with app** 🔗  
+7. **Testing & bug fixes** 🧪  
+8. **Final deployment & presentation** 🎤  
+
+---
+
+## 📖 How to Contribute
+
+1. Clone the repo  
+   ```bash
+   git clone https://github.com/Thomaschettoor/finance-management-app.git
