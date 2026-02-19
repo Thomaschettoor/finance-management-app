@@ -1,7 +1,7 @@
 # 📊 Finance Management App (Smart Personal Finance Assistant)
 
 📱 AI-Driven Personal Finance Management App (UPI & SMS Based)
-📌 Project Overview
+📌 Project Overview v2
 
 With the rapid adoption of UPI and digital payments, users generate large volumes of transaction data through SMS and banking apps. However, most users lack meaningful insights into their spending behavior beyond basic summaries.
 
