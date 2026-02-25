@@ -1,4 +1,5 @@
 import re
+import re
 from typing import Dict, Any, Tuple
 
 
@@ -78,8 +79,17 @@ def normalize_text(raw_text: str) -> Tuple[str, Dict[str, Any]]:
     payment_method = _detect_payment_method(lower)
     merchant_candidate = _candidate_merchant_tokens(original)
 
-    # Canonical normalized text for ML: remove reference numbers and long numeric ids
-    normalized = re.sub(r"\b[0-9A-Z]{8,}\b", " ", original)
+    # Extract VPA (UPI handle) if present (e.g., name@bank)
+    vpa_match = re.search(r"([a-zA-Z0-9.\-_]+@[a-zA-Z0-9.\-_]+)", original)
+    vpa = vpa_match.group(1) if vpa_match else ""
+
+    # Remove common boilerplate marketing lines and URLs from normalized text
+    cleaned = re.sub(r"https?://\S+", " ", original, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\b(?:know more|download|click here|visit|visit us|offer|congrats|hurry|win|redeem now)\b.*", " ", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+    # Canonical normalized text for ML: start from cleaned text, remove long txn ids
+    normalized = re.sub(r"\b[0-9A-Z]{8,}\b", " ", cleaned)
     normalized = re.sub(r"\s+", " ", normalized).strip()
 
     metadata = {
@@ -88,6 +98,7 @@ def normalize_text(raw_text: str) -> Tuple[str, Dict[str, Any]]:
         "transaction_type": txn_type,
         "payment_method": payment_method,
         "merchant_candidate": merchant_candidate,
+        "vpa": vpa,
         "original": original,
     }
 

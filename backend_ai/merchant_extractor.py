@@ -3,22 +3,49 @@ from difflib import SequenceMatcher
 import re
 
 
+# Minimum score required to report a merchant match (prevents false defaults)
+MIN_MATCH_SCORE = 0.65
+
 ALIASES = {
+    # Food & Dining
     "swiggy": ["swiggy", "swiggy.in"],
-    "zomato": ["zomato", "zomato.com"],
+    "zomato": ["zomato", "zomato.com", "zomatolimited", "zomatomedia"],
+    "dominos": ["dominos", "domino", "dominos pizza"],
+    "mcdonalds": ["mcdonalds", "mcd", "mcdonald"],
+    # Shopping
     "amazon": ["amazon", "amazonpay", "amazon.in"],
     "flipkart": ["flipkart", "fkrt"],
     "myntra": ["myntra"],
+    "bigbasket": ["bigbasket", "big basket"],
+    "dmart": ["dmart", "dmartindia", "d mart"],
+    "reliance fresh": ["reliance fresh", "reliancefresh"],
+    # Entertainment
+    "netflix": ["netflix"],
+    "bookmyshow": ["bookmyshow", "bms", "book my show"],
+    "spotify": ["spotify"],
+    "hotstar": ["hotstar", "disney hotstar", "disneyplus"],
+    "primevideo": ["prime video", "primevideo", "amazon prime"],
+    # Transport
     "uber": ["uber", "uberindia"],
     "ola": ["ola", "ola cabs"],
-    "paytm": ["paytm"],
-    "dream11": ["dream11"],
-    "rummycircle": ["rummycircle", "rummy"],
-    "netflix": ["netflix"],
-    "spotify": ["spotify"],
+    "rapido": ["rapido"],
+    "indriver": ["indriver", "indrive"],
+    # Utilities
+    "jio": ["jio", "reliance jio"],
     "airtel": ["airtel"],
-    "jio": ["jio"],
-    "vi": ["vi", "vodafone idea"],
+    "vi": ["vi", "vodafone idea", "vodafoneidea"],
+    "electricity board": ["electricity board", "ebill", "electric board", "bescom", "mseb", "pspcl", "bses", "tneb"],
+    "water supply": ["water supply", "water board", "bwssb"],
+    # Wallets / Payments
+    "paytm": ["paytm"],
+    # Gambling
+    "dream11": ["dream11"],
+    "rummycircle": ["rummycircle", "rummy circle", "rummy"],
+    "pokerstars": ["pokerstars", "poker stars"],
+    "mpl": ["mpl", "mobile premier league", "mplapp", "mplpro"],
+    # Health
+    "medplus": ["medplus", "med plus"],
+    "hospital": ["hospital", "clinic", "apollo", "fortis", "manipal"],
 }
 
 
@@ -74,6 +101,13 @@ def extract_merchant(candidate: str, merchant_db: List[Dict[str, Any]] | None = 
                 best_id = canonical
                 matched_alias = alias
                 matched_record = None
+
+    # If best score is below threshold, treat as unknown (prevents false defaults)
+    if best_score < MIN_MATCH_SCORE:
+        best_name = ""
+        best_id = ""
+        matched_alias = ""
+        matched_record = None
 
     meta = {
         "candidate": candidate,

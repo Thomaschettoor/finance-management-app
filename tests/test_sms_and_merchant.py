@@ -18,6 +18,18 @@ class TestPhaseB(unittest.TestCase):
         norm, meta = normalize_text(raw)
         self.assertEqual(meta.get("transaction_type"), "CREDIT")
 
+    def test_vpa_extraction(self):
+        raw = "Your VPA sanju39chd@okaxis linked to Indian Bank is debited for Rs.299.00"
+        norm, meta = normalize_text(raw)
+        self.assertIn('@', meta.get('vpa', ''))
+
+    def test_boilerplate_removal(self):
+        raw = "Rs.95.15 on Zomato charged via Simpl. -- Food, groceries, commute. Know More: https://click.getsimpl.com/vyhm/"
+        norm, meta = normalize_text(raw)
+        # normalized text should not contain known boilerplate URL or 'Know More'
+        self.assertNotIn('Know More', norm)
+        self.assertNotIn('http', norm.lower())
+
 
 if __name__ == "__main__":
     unittest.main()
