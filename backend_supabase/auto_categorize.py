@@ -19,6 +19,7 @@ load_dotenv()
 
 from backend_ai.sms_normalizer import normalize_text
 from backend_ai.merchant_extractor import extract_merchant
+from backend_supabase.behavior_suggestion_engine import generate_suggestions
 
 BATCH_SIZE = 50
 CONFIDENT_MATCH_THRESHOLD = 0.80
@@ -133,6 +134,20 @@ def run_auto_categorization():
             merchant_id_out   = ""
             _add_to_learning_pool(merchant_candidate, user_id)
 
+            # Generate behavioral suggestions for user to confirm later
+            try:
+                behavior_result = generate_suggestions(
+                    user_id=user_id,
+                    transaction={
+                        "transaction_id": txn_id,
+                        "amount":         parsing_meta.get("amount", 0.0),
+                        "timestamp":      txn.get("transaction_date") or txn.get("created_at"),
+                    },
+                )
+            except Exception as e:
+                print(f"Warning: behavior engine error for {txn_id}: {e}")
+                behavior_result = None
+
         supabase.table("transactions").update({
             "normalized_text":  normalized_text or raw_text,
             "merchant_name":    merchant_name or txn.get("merchant_name"),
@@ -140,7 +155,7 @@ def run_auto_categorization():
             "parsing_metadata": parsing_meta,
         }).eq("id", txn_id).execute()
 
-        supabase.table("transaction_categorizations").upsert({
+        cat_row = {
             "transaction_id":      txn_id,
             "user_id":             user_id,
             "primary_category_id": primary_cat_id,
@@ -153,12 +168,20 @@ def run_auto_categorization():
                 "merchant_id":        merchant_id_out,
                 "matched_from":       "confident_merchants" if matched else "none",
             },
-        }, on_conflict="transaction_id").execute()
+        }
+        if not matched and behavior_result:
+            cat_row["behavioral_suggestions"] = behavior_result
+        supabase.table("transaction_categorizations").upsert(
+            cat_row, on_conflict="transaction_id"
+        ).execute()
 
         supabase.table("transactions").update({"is_processed": True}).eq("id", txn_id).execute()
 
-        icon = "OK" if matched else "??"
-        print(f"[{icon}] {txn_id} -> {prediction_source} | {merchant_name or 'UNKNOWN'}")
+        if matched:
+            print(f"[OK] {txn_id} -> {prediction_source} | {merchant_name}")
+        else:
+            n_suggestions = len((behavior_result or {}).get("suggestions", []))
+            print(f"[??] {txn_id} -> UNCLASSIFIED | {merchant_name or 'UNKNOWN'} | {n_suggestions} suggestion(s)")
 
     print("Categorization batch complete.")
 
