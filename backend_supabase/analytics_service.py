@@ -6,6 +6,12 @@ import os
 from supabase import create_client
 from dotenv import load_dotenv
 
+# Import gambling detection for enhanced risk scoring
+try:
+    from . import gambling_detection_service
+except ImportError:
+    import gambling_detection_service
+
 load_dotenv()
 _sb = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
@@ -13,10 +19,10 @@ _sb = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 def _fetch_categorized_txns(user_id: str, start: datetime, end: datetime) -> list[dict]:
     rows = (
         _sb.table("transactions")
-        .select("id, amount, transaction_date, transaction_type, merchant_name, created_at")
+        .select("id, amount, timestamp, transaction_type, merchant_name, created_at")
         .eq("user_id", user_id)
-        .gte("transaction_date", start.isoformat())
-        .lte("transaction_date", end.isoformat())
+        .gte("timestamp", start.isoformat())
+        .lte("timestamp", end.isoformat())
         .execute()
         .data or []
     )
@@ -43,7 +49,7 @@ def _fetch_categorized_txns(user_id: str, start: datetime, end: datetime) -> lis
             "category_id": cid,
             "transaction_type": r.get("transaction_type"),
             "merchant_name": r.get("merchant_name"),
-            "transaction_date": r.get("transaction_date") or r.get("created_at"),
+            "transaction_date": r.get("timestamp") or r.get("created_at"),
         })
     return out
 
@@ -85,7 +91,14 @@ def upsert_monthly_user_summary(user_id: str, month: date) -> None:
     }
 
     # upsert using unique (user_id, month)
-    _sb.table("monthly_user_summary").upsert(payload, on_conflict=["user_id", "month"]).execute()
+    try:
+        _sb.table("monthly_user_summary").upsert(payload).execute()
+    except Exception as e:
+        # If upsert fails, try insert then update
+        try:
+            _sb.table("monthly_user_summary").insert(payload).execute()
+        except:
+            _sb.table("monthly_user_summary").update(payload).eq("user_id", user_id).eq("month", start.date().isoformat()).execute()
 
 
 def get_category_breakdown(user_id: str, start: datetime, end: datetime) -> dict:
@@ -221,12 +234,42 @@ def compute_risk_profile_for_user(user_id: str) -> dict:
     total_credit = float(row[0]["total_credit"]) if row else 0.0
     recurring_burden_ratio = (recurring_burden / total_credit) if total_credit else 0.0
 
-    # risk score: 40% volatility (scaled), 30% inverse savings, 30% recurring burden
-    # scale components to 0-100
+    # NEW: Get gambling behavior metrics
+    try:
+        gambling_metrics = gambling_detection_service.compute_gambling_metrics(user_id)
+        gambling_risk_score = gambling_metrics.get("gambling_risk_score", 0)
+        gambling_spend_ratio = gambling_metrics.get("gambling_spend_ratio", 0)
+        
+        # Also run fraud pattern detection and get count
+        fraud_patterns = gambling_detection_service.detect_fraud_patterns(user_id)
+        fraud_risk_score = min(100, len(fraud_patterns) * 25)  # 25 points per pattern, capped at 100
+        
+        if fraud_patterns:
+            gambling_detection_service.store_fraud_patterns(user_id, fraud_patterns)
+    except Exception as e:
+        print(f"Warning: Gambling/fraud detection failed for user {user_id}: {e}")
+        gambling_risk_score = 0
+        gambling_spend_ratio = 0
+        fraud_risk_score = 0
+
+    # ENHANCED risk score: Original formula + gambling + fraud factors
+    # Original formula components (scaled to 0-100)
     vol_score = min(100, expense_volatility)
     inv_savings = (1 - savings_ratio) * 100
     burden = min(100, recurring_burden_ratio * 100)
-    risk = int(round(0.4 * vol_score + 0.3 * inv_savings + 0.3 * burden))
+    
+    # Base risk score (original formula with reduced weights to make room for new factors)
+    base_risk = 0.3 * vol_score + 0.25 * inv_savings + 0.25 * burden
+    
+    # Add gambling and fraud factors
+    gambling_factor = 0.15 * gambling_risk_score  # 15% weight for gambling
+    fraud_factor = 0.05 * fraud_risk_score        # 5% weight for fraud patterns
+    
+    # Final composite risk score
+    risk = int(round(base_risk + gambling_factor + fraud_factor))
+    risk = min(100, max(0, risk))  # Ensure 0-100 range
+    
+    # Risk level determination (same thresholds)
     if risk < 34:
         level = "LOW"
     elif risk < 67:
@@ -241,6 +284,9 @@ def compute_risk_profile_for_user(user_id: str) -> dict:
         "recurring_burden_ratio": str(round(recurring_burden_ratio, 4)),
         "risk_score": risk,
         "risk_level": level,
+        "gambling_risk_score": gambling_risk_score,
+        "fraud_risk_score": fraud_risk_score,
+        "gambling_spend_ratio": str(round(gambling_spend_ratio, 4))
     }
     _sb.table("user_financial_risk_profile").upsert(payload, on_conflict=["user_id"]).execute()
     return payload

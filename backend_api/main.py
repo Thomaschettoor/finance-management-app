@@ -23,6 +23,9 @@ Endpoints:
     GET  /api/v1/analytics/summary               spending by category
     GET  /api/v1/analytics/trends                month-over-month trends
 
+  Chat
+    POST /api/v1/chat/query                      AI chat about transaction behavior
+
   Health
     GET  /health                                 liveness check
 """
@@ -30,7 +33,7 @@ Endpoints:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend_api.routes import transactions, categories, analytics
+from backend_api.routes import transactions, categories, analytics, forecast, chat
 
 # ── App ───────────────────────────────────────────────────────────────────────
 
@@ -59,6 +62,8 @@ API_PREFIX = "/api/v1"
 app.include_router(transactions.router, prefix=API_PREFIX)
 app.include_router(categories.router,   prefix=API_PREFIX)
 app.include_router(analytics.router,    prefix=API_PREFIX)
+app.include_router(forecast.router,     prefix=API_PREFIX)
+app.include_router(chat.router,         prefix=API_PREFIX)
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
