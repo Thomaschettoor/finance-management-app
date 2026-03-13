@@ -18,6 +18,9 @@ from dotenv import load_dotenv
 
 from backend_api.auth import get_current_user
 
+# import helper to resolve category names with proper fallback
+from backend_api.routes.transactions import _fetch_category_map
+
 load_dotenv()
 _sb = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
@@ -78,18 +81,20 @@ def get_user_transaction_summary(user_id: str) -> Dict[str, Any]:
         
         cat_map = {c["transaction_id"]: c.get("primary_category_id") for c in categorizations}
         
-        # Get category names
+        # Get category names. Use the same fallback logic as transactions endpoint
+        # so that we don't blow up if the `categories` table has been replaced by
+        # `master_categories` in the Supabase schema.
         unique_category_ids = list(set(filter(None, cat_map.values())))
         category_names = {}
         if unique_category_ids:
-            categories = (
-                _sb.table("categories")
-                .select("id, name")
-                .in_("id", unique_category_ids)
-                .execute()
-                .data or []
-            )
-            category_names = {c["id"]: c["name"] for c in categories}
+            # reuse helper which already handles try/except for table names
+            all_cats = _fetch_category_map()  # returns {id: name}
+            # filter down to only those we care about
+            for cid in unique_category_ids:
+                if cid in all_cats:
+                    category_names[cid] = all_cats[cid]
+            # if for some reason mapping is still empty but we caught an error,
+            # leave category_names empty so later code will label them as Uncategorized
         
         # Analyze transactions
         total_amount = sum(float(t.get("amount", 0)) for t in transactions)
@@ -303,3 +308,52 @@ async def chat_query(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error processing chat query: {str(e)}"
         )
+
+# additional helper endpoints for AI chat UI
+
+@router.get("/context", summary="Chat context data")
+def chat_context(user_id: str = Depends(get_current_user)):
+    """Return summarized financial data for the AI chat context."""
+    summary = get_user_transaction_summary(user_id)
+    # include risk_score from analytics if available
+    risk = None
+    try:
+        from backend_supabase.analytics_service import compute_risk_profile_for_user
+        rdata = compute_risk_profile_for_user(user_id)
+        risk = rdata.get("risk_score")
+    except Exception:
+        pass
+    return {
+        "monthly_spending": summary.get("total_amount", 0),
+        "transaction_count": summary.get("total_transactions", 0),
+        "top_categories": summary.get("top_categories", []),
+        "risk_score": risk,
+    }
+
+
+@router.get("/suggestions", summary="Suggested chat questions")
+def chat_suggestions():
+    suggestions = [
+        "Ways to reduce spending",
+        "Where am I spending the most money",
+        "How much did I spend on food",
+        "How can I save more money",
+        "What is my financial risk score",
+    ]
+    return {"suggestions": suggestions}
+
+
+@router.get("/history", summary="Chat history")
+def chat_history(user_id: str = Depends(get_current_user)):
+    # simple fetch of last 20 chat messages for the user
+    rows = (
+        _sb.table("chat_history")
+        .select("role, message, timestamp")
+        .eq("user_id", user_id)
+        .order("timestamp", desc=True)
+        .limit(20)
+        .execute()
+        .data or []
+    )
+    return {"history": rows}
+

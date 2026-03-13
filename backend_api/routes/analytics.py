@@ -261,6 +261,83 @@ def spending_trends(
 
 
 # New endpoints using precomputed analytics/service layer
+
+
+@router.get("/risk_score", summary="Financial risk score")
+def risk_score(user_id: str = Depends(get_current_user)):
+    resp = analytics_service.compute_risk_profile_for_user(user_id)
+    # map to requested fields
+    return {
+        "risk_score": resp.get("risk_score"),
+        "risk_level": resp.get("risk_level"),
+        "message": f"Your risk level is {resp.get('risk_level')} with score {resp.get('risk_score')}.",
+    }
+
+
+@router.get("/spending_summary", summary="Spending summary (debits only)")
+def spending_summary_overview(
+    period: str = Query("current_month", description="Currently only current_month supported"),
+    user_id: str = Depends(get_current_user),
+):
+    # reuse category_breakdown logic but sum debits
+    now = datetime.now(timezone.utc)
+    start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    end = now
+    txns = _fetch_categorized_txns(user_id, start, end)
+    total = sum(t["amount"] for t in txns if t.get("transaction_type") == "DEBIT")
+    count = sum(1 for t in txns if t.get("transaction_type") == "DEBIT")
+    return {"total_spent": round(total, 2), "transaction_count": count, "period": period}
+
+
+@router.get("/monthly_forecast", summary="Monthly spending forecast")
+def monthly_forecast(user_id: str = Depends(get_current_user)):
+    # last 3 months + prediction equal to last month plus simple growth
+    data = analytics_service.get_monthly_trend(user_id, 3)
+    months = []
+    for item in data:
+        months.append({"month": item["month"], "actual": item.get("total_debit", 0), "predicted": None})
+    # naive prediction: same as last actual
+    if months:
+        last_val = months[-1]["actual"]
+        import datetime as _dt
+        y, m = map(int, months[-1]["month"].split("-"))
+        # increment month
+        if m == 12:
+            y += 1
+            m = 1
+        else:
+            m += 1
+        next_month = f"{y}-{m:02d}"
+        months.append({"month": next_month, "actual": None, "predicted": last_val})
+    return {"months": months, "prediction_text": "Forecast based on recent trend."}
+
+
+@router.get("/alerts", summary="Spending alerts")
+def spending_alerts(user_id: str = Depends(get_current_user)):
+    # simple example: compare this month's debit total to last month's
+    now = datetime.now(timezone.utc)
+    this_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    last_month = (this_start - timedelta(days=1)).replace(day=1)
+    txns_this = _fetch_categorized_txns(user_id, this_start, now)
+    txns_last = _fetch_categorized_txns(user_id, last_month, this_start - timedelta(seconds=1))
+    total_this = sum(t['amount'] for t in txns_this if t.get('transaction_type') == 'DEBIT')
+    total_last = sum(t['amount'] for t in txns_last if t.get('transaction_type') == 'DEBIT')
+    alerts = []
+    if total_last and total_this > total_last * 1.5:
+        alerts.append({"type": "warning", "title": "Spending spike", "message": "Your debit spending this month is more than 50% higher than last month."})
+    if total_this < total_last * 0.7:
+        alerts.append({"type": "positive", "title": "Spending down", "message": "Good job! Your spending has decreased compared to last month."})
+    return {"alerts": alerts}
+
+
+@router.get("/recommendations", summary="Financial recommendations")
+def recommendations(user_id: str = Depends(get_current_user)):
+    # placeholder static suggestions
+    recs = [
+        {"title": "Set a budget", "message": "Consider setting a monthly budget for categories where you overspend."},
+        {"title": "Review subscriptions", "message": "Check recurring payments and cancel those you no longer use."},
+    ]
+    return {"recommendations": recs}
 @router.get("/category_breakdown", summary="Category breakdown (precomputed service)")
 def category_breakdown(
     start: Optional[str] = Query(None, description="ISO start date"),
@@ -279,7 +356,8 @@ def category_breakdown(
         e = now
 
     resp = analytics_service.get_category_breakdown(user_id, s, e)
-    return resp
+    # adapt structure to required shape
+    return {"categories": resp.get("categories", [])}
 
 
 @router.get("/monthly_trend", summary="Monthly trend (precomputed summaries)")

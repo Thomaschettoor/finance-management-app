@@ -19,6 +19,7 @@ ALIASES = {
     "bigbasket": ["bigbasket", "big basket"],
     "dmart": ["dmart", "dmartindia", "d mart"],
     "reliance fresh": ["reliance fresh", "reliancefresh"],
+    "ikea": ["ikea"],
     # Entertainment
     "netflix": ["netflix"],
     "bookmyshow": ["bookmyshow", "bms", "book my show"],
@@ -43,6 +44,8 @@ ALIASES = {
     "rummycircle": ["rummycircle", "rummy circle", "rummy"],
     "pokerstars": ["pokerstars", "poker stars"],
     "mpl": ["mpl", "mobile premier league", "mplapp", "mplpro"],
+    # Movie chains / others
+    "pvr": ["pvr"],
     # Health
     "medplus": ["medplus", "med plus"],
     "hospital": ["hospital", "clinic", "apollo", "fortis", "manipal"],

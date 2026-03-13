@@ -1,0 +1,81 @@
+{
+  "server": {
+    "local": {
+      "host": "localhost",
+      "port": 8000,
+      "baseUrl": "http://localhost:8000",
+      "apiPrefix": "/api/v1",
+      "fullApiUrl": "http://localhost:8000/api/v1"
+    },
+    "network": {
+      "host": "10.54.6.204",
+      "port": 8000,
+      "baseUrl": "http://10.54.6.204:8000",
+      "apiPrefix": "/api/v1",
+      "fullApiUrl": "http://10.54.6.204:8000/api/v1",
+      "note": "Use this URL to access from other devices on the same network"
+    },
+    "androidEmulator": {
+      "baseUrl": "http://10.0.2.2:8000",
+      "apiPrefix": "/api/v1",
+      "fullApiUrl": "http://10.0.2.2:8000/api/v1",
+      "note": "Use this URL when running on Android Emulator"
+    }
+  },
+  "authentication": {
+    "type": "Bearer",
+    "header": "Authorization",
+    "format": "Bearer {token}",
+    "tokenSource": "Supabase JWT",
+    "example": "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  },
+  "documentation": {
+    "swagger": "http://localhost:8000/docs",
+    "redoc": "http://localhost:8000/redoc",
+    "openapi": "http://localhost:8000/openapi.json"
+  },
+  "endpoints": {
+    "dashboard": {
+      "summary": "GET /api/v1/dashboard/summary",
+      "recentTransactions": "GET /api/v1/dashboard/recent_transactions"
+    },
+    "transactions": {
+      "list": "GET /api/v1/transactions/",
+      "create": "POST /api/v1/transactions/",
+      "detail": "GET /api/v1/transactions/{id}",
+      "merchants": "GET /api/v1/transactions/merchants",
+      "suggestions": "GET /api/v1/transactions/{id}/suggestions",
+      "confirm": "POST /api/v1/transactions/{id}/confirm"
+    },
+    "sms": {
+      "ingest": "POST /api/v1/sms/ingest"
+    },
+    "analytics": {
+      "riskScore": "GET /api/v1/analytics/risk_score",
+      "spendingSummary": "GET /api/v1/analytics/spending_summary",
+      "categoryBreakdown": "GET /api/v1/analytics/category_breakdown",
+      "monthlyForecast": "GET /api/v1/analytics/monthly_forecast",
+      "alerts": "GET /api/v1/analytics/alerts",
+      "recommendations": "GET /api/v1/analytics/recommendations"
+    },
+    "chat": {
+      "query": "POST /api/v1/chat/query",
+      "context": "GET /api/v1/chat/context",
+      "suggestions": "GET /api/v1/chat/suggestions",
+      "history": "GET /api/v1/chat/history"
+    },
+    "sms": {
+      "ingest": "POST /api/v1/sms/ingest"
+    },
+
+    "categories": {
+      "list": "GET /api/v1/categories"
+    },
+    "user": {
+      "profile": "GET /api/v1/user/profile"
+    },
+    "health": {
+      "check": "GET /health"
+    }
+  }
+}

@@ -95,10 +95,25 @@ def _add_to_learning_pool(candidate, user_id):
         print(f"Warning: learning pool error for {mname!r}: {e}")
 
 
-def run_auto_categorization():
-    txns = (supabase.table("transactions")
-            .select("*").eq("is_processed", False).limit(BATCH_SIZE)
-            .execute().data or [])
+def run_auto_categorization(user_filter: str | None = None, reset: bool = False):
+    """Process a batch of unclassified transactions.
+
+    If ``user_filter`` is provided (a user_id string) only that user's
+    records are touched; otherwise everything with is_processed=False.
+
+    If ``reset`` is True, any existing categorizations for the selected
+    transactions will be cleared and is_processed reset, allowing a full
+    re-evaluation even if they were previously processed.
+    """
+    if user_filter and reset:
+        print(f"Resetting processed state for user {user_filter}")
+        supabase.table("transactions").update({"is_processed": False}).eq("user_id", user_filter).execute()
+        supabase.table("transaction_categorizations").delete().eq("user_id", user_filter).execute()
+
+    query = supabase.table("transactions").select("*").eq("is_processed", False)
+    if user_filter:
+        query = query.eq("user_id", user_filter)
+    txns = (query.limit(BATCH_SIZE).execute().data or [])
     print(f"Found {len(txns)} transactions to categorize")
     if not txns:
         return
@@ -121,15 +136,15 @@ def run_auto_categorization():
         if matched:
             primary_cat_id    = matched["primary_category_id"]
             confidence        = float(matched.get("confidence_score") or 0.9)
-            prediction_source = "CONFIDENT_MERCHANT"
-            prediction_status = "OK"
+            prediction_source = "MODEL"  # Use valid database enum value
+            prediction_status = "AUTO"
             merchant_name     = matched["merchant_name"]
             merchant_id_out   = matched["merchant_id"]
         else:
-            primary_cat_id    = None
+            primary_cat_id    = CATEGORY_MAP["Others"]  # Use "Others" category instead of NULL
             confidence        = 0.0
-            prediction_source = "UNCLASSIFIED"
-            prediction_status = "UNCLASSIFIED"
+            prediction_source = "MODEL"  # Use valid database enum value
+            prediction_status = "AUTO"
             merchant_name     = merchant_candidate or ""
             merchant_id_out   = ""
             _add_to_learning_pool(merchant_candidate, user_id)
@@ -141,7 +156,7 @@ def run_auto_categorization():
                     transaction={
                         "transaction_id": txn_id,
                         "amount":         parsing_meta.get("amount", 0.0),
-                        "timestamp":      txn.get("transaction_date") or txn.get("created_at"),
+                        "timestamp":      txn.get("timestamp") or txn.get("created_at"),
                     },
                 )
             except Exception as e:
@@ -178,13 +193,19 @@ def run_auto_categorization():
         supabase.table("transactions").update({"is_processed": True}).eq("id", txn_id).execute()
 
         if matched:
-            print(f"[OK] {txn_id} -> {prediction_source} | {merchant_name}")
+            print(f"[✅] {txn_id} -> CONFIDENT_MERCHANT | {merchant_name}")
         else:
             n_suggestions = len((behavior_result or {}).get("suggestions", []))
-            print(f"[??] {txn_id} -> UNCLASSIFIED | {merchant_name or 'UNKNOWN'} | {n_suggestions} suggestion(s)")
+            print(f"[📂] {txn_id} -> OTHERS_CATEGORY | {merchant_name or 'UNKNOWN'} | {n_suggestions} suggestion(s)")
 
     print("Categorization batch complete.")
 
 
 if __name__ == "__main__":
-    run_auto_categorization()
+    import argparse
+    parser = argparse.ArgumentParser(description="Re-run auto-categorization")
+    parser.add_argument("--user", help="optional user_id to process only that user")
+    parser.add_argument("--reset", action="store_true",
+                        help="clear existing categorizations for the user before processing")
+    args = parser.parse_args()
+    run_auto_categorization(user_filter=args.user, reset=args.reset)

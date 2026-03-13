@@ -53,7 +53,8 @@ def login_user():
             print(f"   ✅ Login successful!")
             print(f"   📧 Email: {auth_response.user.email}")
             print(f"   🆔 User ID: {user_id}")
-            print(f"   🎫 Token: {token[:20]}...")
+            # print full token so you can copy it for Swagger/verify
+            print(f"   🎫 Token: {token}")
             return token, user_id
         else:
             print(f"   ❌ Login failed: No user or session in response")
@@ -94,6 +95,7 @@ def test_transactions_api(token):
                     merchant = txn.get("merchant_name", "Unknown")
                     date = txn.get("transaction_date", txn.get("created_at", "Unknown"))
                     category_id = txn.get("category_id", "Uncategorized")
+                    category_name = txn.get("category_name") or ""
                     
                     # Format date nicely
                     try:
@@ -105,7 +107,7 @@ def test_transactions_api(token):
                     except:
                         formatted_date = date
                     
-                    print(f"      {i+1}. {merchant} - ₹{amount} ({formatted_date})")
+                    print(f"      {i+1}. {merchant} - ₹{amount} ({formatted_date}) [{category_name or category_id}]")
             else:
                 print(f"   ⚠️ No transactions found")
                 
@@ -131,7 +133,6 @@ def test_transactions_api(token):
 def test_single_transaction_api(token, user_id):
     """Test getting a single transaction."""
     print(f"\n🎯 Testing single transaction API...")
-    
     try:
         # First get a transaction ID from the list
         headers = {
@@ -160,6 +161,25 @@ def test_single_transaction_api(token, user_id):
                 print(f"   ⚠️ No transactions to test with")
         else:
             print(f"   ❌ Could not get transactions list for single transaction test")
+    except Exception as e:
+        print(f"   ❌ Error testing single transaction: {e}")
+
+
+def test_sms_ingest_api(token):
+    """Submit a dummy SMS to the ingest API and ensure it accepts it."""
+    print(f"\n📩 Testing SMS ingest API...")
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    payload = {
+        "sms_text": "INR 123.45 debited from ABC card at TESTMERCHANT",
+        "sender": "TESTBANK",
+        "timestamp": "2026-03-12T05:00:00Z"
+    }
+    try:
+        resp = requests.post(f"{API_BASE_URL}/sms/ingest", headers=headers, json=payload, timeout=10)
+        print(f"   📨 Response status: {resp.status_code}")
+        print(f"   body: {resp.text}")
+    except Exception as e:
+        print(f"   ❌ Error calling SMS ingest: {e}")
             
     except Exception as e:
         print(f"   ❌ Error testing single transaction: {e}")
@@ -168,6 +188,18 @@ def test_single_transaction_api(token, user_id):
 def test_direct_database_query():
     """Test direct database query as fallback."""
     print(f"\n🗃️ Testing direct database query (fallback)...")
+
+
+def test_categories_api(token):
+    """Test the categories endpoint to list all categories."""
+    print(f"\n📁 Testing categories API...")
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    try:
+        resp = requests.get(f"{API_BASE_URL}/categories", headers=headers, timeout=10)
+        print(f"   📨 Response status: {resp.status_code}")
+        print(f"   body: {resp.text}")
+    except Exception as e:
+        print(f"   ❌ Error calling categories API: {e}")
     
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -207,8 +239,14 @@ def main():
     # Step 3: Test single transaction API
     if user_id:
         test_single_transaction_api(token, user_id)
+
+    # Step 4: Test SMS ingestion (should create a new transaction)
+    test_sms_ingest_api(token)
+
+    # Step 5: Test categories API
+    test_categories_api(token)
     
-    # Step 4: Test direct database query as fallback
+    # Step 6: Test direct database query as fallback
     test_direct_database_query()
     
     print(f"\n✅ Testing completed!")

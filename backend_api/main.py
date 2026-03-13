@@ -16,6 +16,9 @@ Endpoints:
     GET  /api/v1/transactions/{id}/suggestions   behavioral top-3
     POST /api/v1/transactions/{id}/confirm       user confirms category
 
+  SMS Ingestion
+    POST /api/v1/sms/ingest                      process SMS and create transaction
+
   Categories
     GET  /api/v1/categories                      list all categories
 
@@ -33,7 +36,7 @@ Endpoints:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend_api.routes import transactions, categories, analytics, forecast, chat
+from backend_api.routes import transactions, categories, analytics, forecast, chat, dashboard, user, sms
 
 # ── App ───────────────────────────────────────────────────────────────────────
 
@@ -64,6 +67,9 @@ app.include_router(categories.router,   prefix=API_PREFIX)
 app.include_router(analytics.router,    prefix=API_PREFIX)
 app.include_router(forecast.router,     prefix=API_PREFIX)
 app.include_router(chat.router,         prefix=API_PREFIX)
+app.include_router(dashboard.router,     prefix=API_PREFIX)
+app.include_router(user.router,          prefix=API_PREFIX)
+app.include_router(sms.router,           prefix=API_PREFIX)
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
@@ -71,6 +77,11 @@ app.include_router(chat.router,         prefix=API_PREFIX)
 @app.get("/health", tags=["Health"])
 def health():
     """Liveness check — returns 200 when the server is running."""
+    return {"status": "ok", "version": "1.0.0"}
+
+# alias under API prefix for mobile clients
+@app.get(API_PREFIX + "/health", tags=["Health"])
+def health_api():
     return {"status": "ok", "version": "1.0.0"}
 
 
